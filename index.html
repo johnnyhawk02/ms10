@@ -38,13 +38,14 @@ a{color:var(--acc)}
 
 <div class="card">
   <button id="go">Play</button>
-  <span class="mut" id="status" style="margin-left:12px">Test oscillator into the VCF (KORG35)</span>
+  <span class="mut" id="status" style="margin-left:12px">MS-10 VCO (saw) into the VCF (KORG35)</span>
   <div class="row">
-    <label>Oscillator <select id="wave"><option>sawtooth</option><option>square</option><option>triangle</option></select></label>
-    <label>Pitch <b id="pv"></b><input id="pitch" type="range" min="0" max="1000" value="400"></label>
+    <label>Scale <select id="foot"><option value="8">32'</option><option value="4">16'</option><option value="2" selected>8'</option><option value="1">4'</option></select></label>
+    <label>Keyboard CV (Hz/V) <b id="pv"></b><input id="pitch" type="range" min="0" max="1000" value="400"></label>
+    <label>Pitch knob (expo, IC1) <b id="ev"></b><input id="expo" type="range" min="0" max="1000" value="500"></label>
     <label>Cutoff <b id="cv"></b><input id="cut" type="range" min="0" max="1000" value="550"></label>
     <label>Peak <b id="kv"></b><input id="peak" type="range" min="0" max="1000" value="700"></label>
-    <label>Drive (volts into R57) <b id="dv"></b><input id="drive" type="range" min="0" max="1000" value="250"></label>
+    <label>VCO level into VCF <b id="dv"></b><input id="drive" type="range" min="0" max="1000" value="250"></label>
     <label>Volume <b id="vv"></b><input id="vol" type="range" min="0" max="1000" value="500"></label>
   </div>
   <canvas id="scope" width="1600" height="280"></canvas>
@@ -55,9 +56,15 @@ a{color:var(--acc)}
 <table>
 <tr><th>Block</th><th>State</th></tr>
 <tr><td>VCF (IC16 KORG35)</td><td>Real external part values from the manual, validated against ngspice</td></tr>
-<tr><td>VCO</td><td>Next</td></tr>
+<tr><td>VCO core (expo, ramp, reset, buffer)</td><td>Validated against ngspice: pitch within 3 cents from 30 Hz to 3 kHz</td></tr>
+<tr><td>VCO wave shaper (pulse, PW, triangle)</td><td>Next</td></tr>
 <tr><td>VCA, EG, MG (LFO)</td><td>Planned</td></tr>
 </table>
+
+<h2>VCO validation: JS model vs ngspice</h2>
+<p>Saw at the F3 buffer for three settings (line ngspice, dots JS samples at 48 kHz):</p>
+<img src="validate/out/vco.png" alt="VCO waveforms, ngspice vs JS model">
+<p class="mut">Pitch, ramp limits and levels per case in <a href="validate/out/vco_report.md">vco_report.md</a>.</p>
 
 <h2>VCF validation: JS model vs ngspice</h2>
 <p>Frequency response across cutoff and peak settings (lines ngspice, dots JS):</p>
@@ -67,25 +74,28 @@ a{color:var(--acc)}
 <p class="mut">Full numbers in <a href="validate/out/report.md">report.md</a>. Source on <a href="https://github.com/johnnyhawk02/ms10">GitHub</a>.</p>
 </main>
 <script type="module">
-let ctx, node, osc, out, an;
+let ctx, node, out, an;
 const $ = (id) => document.getElementById(id);
 const v = (id) => $(id).value / 1000;
-const pitch = () => 30 * Math.pow(2, v('pitch') * 5);
+const kbd = () => 0.1 * Math.pow(2, v('pitch') * 6.3);            // 0.1 .. 8 V
+const ic1 = () => (0.5 - v('expo')) * 2;                           // +1 .. -1 V (negative = higher)
+const hz = () => 265.6 * kbd() / +$('foot').value * Math.exp(-ic1() * 100 / 5210 / 0.025865);
 const cutoff = () => 40 * Math.pow(2, v('cut') * 9);
-const drive = () => 0.2 + v('drive') * 9.8;
+const level = () => v('drive') * 4;
 function update() {
-  $('pv').textContent = pitch().toFixed(0) + ' Hz';
+  $('pv').textContent = kbd().toFixed(2) + ' V, ' + hz().toFixed(0) + ' Hz';
+  $('ev').textContent = (ic1() >= 0 ? '+' : '') + ic1().toFixed(2) + ' V';
   $('cv').textContent = cutoff().toFixed(0) + ' Hz';
   $('kv').textContent = (v('peak') * 10).toFixed(1);
-  $('dv').textContent = drive().toFixed(1) + ' V';
+  $('dv').textContent = level().toFixed(2) + 'x';
   $('vv').textContent = Math.round(v('vol') * 100) + '%';
   if (!node) return;
   const t = ctx.currentTime, P = (n) => node.parameters.get(n);
-  osc.type = $('wave').value;
-  osc.frequency.setTargetAtTime(pitch(), t, 0.01);
+  P('kbd').setTargetAtTime(kbd(), t, 0.005); P('footage').setValueAtTime(+$('foot').value, t);
+  P('ic1').setTargetAtTime(ic1(), t, 0.005);
   P('cutoff').setTargetAtTime(cutoff(), t, 0.01);
   P('peak').setTargetAtTime(v('peak'), t, 0.01);
-  P('inputScale').setTargetAtTime(drive(), t, 0.01);
+  P('level').setTargetAtTime(level(), t, 0.01);
   out.gain.setTargetAtTime(v('vol') * v('vol'), t, 0.01);
 }
 function draw() {
@@ -104,12 +114,11 @@ $('go').onclick = async () => {
   if (ctx) { if (ctx.state === 'running') { await ctx.suspend(); $('go').textContent = 'Play'; } else { await ctx.resume(); $('go').textContent = 'Stop'; } return; }
   try {
     ctx = new AudioContext();
-    await ctx.audioWorklet.addModule('dsp/ms10-vcf-processor.js');
-    node = new AudioWorkletNode(ctx, 'ms10-vcf', { outputChannelCount: [1] });
-    osc = new OscillatorNode(ctx, { type: 'sawtooth' });
+    await ctx.audioWorklet.addModule('dsp/ms10-voice-processor.js');
+    node = new AudioWorkletNode(ctx, 'ms10-voice', { numberOfInputs: 0, outputChannelCount: [1] });
     out = new GainNode(ctx, { gain: 0 }); an = new AnalyserNode(ctx, { fftSize: 4096 });
     const lim = new DynamicsCompressorNode(ctx, { threshold: -6, ratio: 12 });
-    osc.connect(node).connect(an).connect(out).connect(lim).connect(ctx.destination); osc.start();
+    node.connect(an).connect(out).connect(lim).connect(ctx.destination);
     $('go').textContent = 'Stop'; update(); draw();
   } catch (e) { $('status').textContent = 'Audio failed to start: ' + e.message; }
 };

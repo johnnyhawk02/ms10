@@ -1,0 +1,45 @@
+* Korg MS-10 VCO core, from the service manual circuit diagram (p.4).
+* Hz/V scale: KBD CV (node 3) -> 100k x8 0.1% chain (R74,R2,R3,R1,R4..R7), SW-1 footage tap -> IC4 TL081 virtual ground.
+* Expo: TR4 C1583 matched pair. Left: collector at IC4 (-) input, base = IC1 out via R10 5.11k / R8 100R.
+*       Right: base grounded, collector -> F1 K30A(O) cascode -> R12 33k -> ramp node X.
+* Core: C1 6200p from +15 V to X, discharged (ramp down) by the expo current.
+* Reset: TR2 2SC1685 (emitter at X) + TR1 2SA564A latch, D1, TR3 2SC1685 diode-connected to R73/R75 427R divider.
+* Buffer: F3 K30A(GR) source follower, R77 10k; saw out via C23 10u to R78 4k7 / R79 6k8.
+* Device models below are generic stand-ins for the Japanese parts (no vendor models available).
+
+.model q1685 NPN(IS=2e-14 BF=300 VAF=100 RB=50 CJE=10p CJC=4p TF=0.4n TR=20n)
+.model q564  PNP(IS=2e-14 BF=250 VAF=80 RB=50 CJE=12p CJC=6p TF=0.6n TR=30n)
+.model q1583 NPN(IS=1e-14 BF=300 VAF=150)
+.model jk30gr NJF(VTO=-1.5 BETA=1.8m LAMBDA=2m CGS=8p CGD=3p)
+.model jk30o  NJF(VTO=-0.6 BETA=1.4m LAMBDA=2m CGS=8p CGD=3p)
+.model d1588 D(IS=2.52e-9 N=1.752 CJO=2p TT=4n)
+
+* footage: rscale = 100k (4'), 200k (8'), 400k (16'), 800k (32')
+* kbd: KBD CV node (Hz/V); ic1: IC1 output (pitch / modulation summer); saw: F3 source; x: ramp node
+.subckt ms10vco kbd ic1 x saw vcc vee v18 params: rscale=200k
+Rs kbd n4 {rscale}
+* IC4 TL081 (single-pole op-amp stand-in): out = -A*(n4) with GBW ~3 MHz
+Eic4 ic4i 0 0 n4 1e5
+Ric4 ic4i ic4o 1k
+Cic4 ic4o 0 53n
+C2 n4 ic4o 100p
+R11 ic4o emx 10k
+D2 emx 0 d1588
+R10 ic1 bl 5.11k
+R8 bl 0 100
+QL n4 bl emx q1583
+QR cr 0 emx q1583
+JF1 dr 0 cr jk30o
+R12 dr x 33k
+C1 vcc x 6200p
+* reset latch
+R73 vcc dv 427
+R75 dv 0 427
+QT3 b b dv q1685
+QT2 tc b x q1685
+QT1 tk tc vcc q564
+D1 tk b d1588
+* buffer
+JF3 v18 x saw jk30gr
+R77 saw 0 10k
+.ends ms10vco

@@ -1,3 +1,6 @@
 { "name": "ms10-model", "private": true, "type": "module",
-  "scripts": { "spice": "python3 spice/run_spice.py", "model": "node validate/run_model.mjs",
-               "compare": "python3 validate/compare.py", "validate": "npm run spice && npm run model && npm run compare" } }
+  "scripts": {
+    "validate:vcf": "python3 spice/run_spice.py && node validate/run_model.mjs && python3 validate/compare.py",
+    "validate:vco": "python3 spice/run_vco.py && node validate/run_vco_model.mjs && python3 validate/compare_vco.py",
+    "validate": "npm run validate:vcf && npm run validate:vco",
+    "smoke": "node validate/worklet_smoke.cjs ." } }

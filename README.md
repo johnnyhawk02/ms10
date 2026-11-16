@@ -9,7 +9,8 @@ Live page: https://johnnyhawk02.github.io/ms10/
 | Block | Status |
 |---|---|
 | VCF (IC16 KORG35) | Real external values from the manual; JS model validated against ngspice |
-| VCO | next |
+| VCO core (expo, ramp, reset, buffer) | From the manual; JS model within 3 cents of ngspice from 30 Hz to 3 kHz |
+| VCO wave shaper (pulse/PW, IC6, SW-2) | next |
 | VCA, EG, MG (LFO) | planned |
 
 ## VCF
@@ -31,16 +32,34 @@ Validation summary (`validate/out/report.md`):
 - Transients (square at high peak, hard-driven sine, saw): 0.04% to 0.2% RMS error.
 - Self-oscillation: 513.4 Hz / 2.10 mV in ngspice vs 517.6 Hz / 2.09 mV in JS.
 
+## VCO
+From the circuit diagram: the keyboard CV is **Hz/V**. It drives a 100k x8 (0.1%) resistor chain; SW-1 picks the
+footage tap (4' 100k, 8' 200k, 16' 400k, 32' 800k) into IC4 TL081's virtual ground, so the reference current is
+linear in the CV. TR4 (C1583 matched pair) applies the exponential pitch/modulation from IC1 via R10 5.11k / R8 100R
+(about 1.07 octaves per volt). TR4's output current runs through the F1 K30A cascode and R12 33k and discharges
+C1 6200p from +15 V. The TR1 2SA564A / TR2 2SC1685 latch, referenced by TR3 to the R73/R75 427R divider, resets
+the ramp at about 7.5 V back to 13.6 V in about 0.3 us. F3 K30A source follower buffers the saw.
+
+Result: 132.8 Hz per volt at 8'. JS vs ngspice pitch error is +0.5 to +2.7 cents over 30 Hz to 3 kHz, ramp
+levels within 3 mV (`validate/out/vco_report.md`). The latch's trip and release levels move by a few mV with
+current; that curve is extracted from the ngspice sweep. Device models for the Japanese transistors and JFETs are
+generic stand-ins. Near 100 uA of core current the stand-in latch is close to its holding current and ngspice can
+latch up; the JS model does not.
+
+The web page plays the VCO saw (polyBLEP band-limited) through the VCF (`dsp/ms10-voice-processor.js`).
+
 ## Layout
 - `spice/korg35_vcf.lib` - netlist; `spice/params.json` - values; `spice/run_spice.py` - test benches
 - `dsp/ms10-vcf-core.js` - DSP model (RK4, 4x oversampled, exponential integrator for the stiff C15 node)
 - `dsp/ms10-vcf-processor.js` - AudioWorkletProcessor `ms10-vcf`
+- `spice/ms10_vco.lib`, `spice/run_vco.py` - VCO netlist and sweep; `dsp/ms10-vco-core.js` - VCO model
+- `dsp/ms10-voice-processor.js` - AudioWorkletProcessor `ms10-voice` (VCO saw into VCF)
 - `index.html` - the web page (GitHub Pages)
 - `validate/` - runs the JS model on the same stimuli and compares
 
 ## Run
 ```
 sudo apt install ngspice && pip install numpy matplotlib
-npm run validate                      # ngspice -> JS model -> compare, writes validate/out/
-node validate/worklet_smoke.cjs .     # renders audio through the real AudioWorklet in headless Chromium
+npm run validate      # ngspice -> JS model -> compare for VCF and VCO, writes validate/out/
+npm run smoke         # renders audio through both AudioWorklets in headless Chromium
 ```
