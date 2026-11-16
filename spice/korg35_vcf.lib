@@ -1,0 +1,58 @@
+* Korg MS-10 VCF: IC16 KORG35 plus its external parts, from the service manual circuit diagram.
+* External parts (real values): R57 12k / R59 47R input attenuator (R56 4k7 to the EXT level amp),
+*   C12 3.3n (floating, to the peak-feedback node), C13 1n (to ground),
+*   peak amp IC7 (1/2 4558): R64 270k || D10,D11 (1S1588), R63 4k7 + C16 10u to ground,
+*   C19 33u -> R62 2k2 -> VR13 10kB PEAK pot -> R61 5k6 || C15 1n -> feedback node, R60 220R to ground.
+* KORG35 internals are NOT in the manual. Assumed here: two BJT differential-pair transconductors
+*   (the Sallen-Key "resistors"), a matched-pair exponential converter, unity output buffer on pin 7.
+
+.model npnx NPN(IS=1e-14 BF=200)
+.model d1s1588 D(IS=2.52e-9 N=1.752)
+
+* BJT differential-pair OTA. Iout (into node out) = alpha*Itail*tanh((Vp-Vn)/(2*VT))
+.subckt ota inp inn out tail vcc
+Q1 c1 inp tail npnx
+Q2 c2 inn tail npnx
+Vs1 vcc c1 0
+Vs2 vcc c2 0
+F1 0 out Vs1 1
+F2 out 0 Vs2 1
+.ends ota
+
+* Matched-pair exponential converter, two outputs. Ic(out) = Iref * exp(Vc/VT)
+.subckt expo vc tailA tailB params: iref=1u
+Vbref bref 0 -2
+Iref 0 c1x DC {iref}
+Qe1 c1x bref eme npnx
+Eop eme 0 0 c1x 1e5
+Ebc bc bref vc 0 1
+Qa tailA bc eme npnx
+Qb tailB bc eme npnx
+.ends expo
+
+* in: VCO signal (volts) at R57.  out: KORG35 pin 7.  vc: expo control voltage.  peak: 0..1 (VR13 rotation)
+.subckt ms10vcf in out vc vcc params: iref=1u peak=0.5
+R57 in n7 12k
+R56 n7 0 4.7k
+R59 n7 0 47
+X1 n7 v1 v1 tailA vcc ota
+C12 v1 f 3.3n
+X2 v1 v2 v2 tailB vcc ota
+C13 v2 0 1n
+Xe vc tailA tailB expo iref={iref}
+E7 out 0 v2 0 1
+* IC7 peak amp
+Eamp a 0 out nm 1e6
+R64 nm a 270k
+D10 a nm d1s1588
+D11 nm a d1s1588
+R63 nm c16 4.7k
+C16 c16 0 10u
+C19 a b 33u
+R62 b t 2.2k
+Ra t w {(1-peak)*10k + 0.01}
+Rb w 0 {peak*10k + 0.01}
+R61 w f 5.6k
+C15 w f 1n
+R60 f 0 220
+.ends ms10vcf

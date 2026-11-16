@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MS-10 component model</title>
+<meta name="description" content="A component-level model of the Korg MS-10, running in an AudioWorklet and validated against ngspice.">
+<style>
+:root{--bg:#f6f4ef;--fg:#1d1c1a;--mut:#6b6760;--card:#fff;--line:#e2ddd3;--acc:#c2410c;--scope:#1d1c1a}
+@media (prefers-color-scheme:dark){:root{--bg:#141412;--fg:#ecebe6;--mut:#a29e95;--card:#1d1c1a;--line:#33312c;--acc:#f97316;--scope:#ecebe6}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:860px;margin:0 auto;padding:40px 16px 80px}
+h1{font-size:2rem;margin:0 0 .25rem;letter-spacing:-.01em}
+h2{font-size:1.15rem;margin:2.5rem 0 .75rem}
+p{margin:.5rem 0}
+.lede{color:var(--mut);margin-bottom:1.5rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px 24px;margin-top:16px}
+label{display:block;font-size:.85rem;color:var(--mut)}
+label b{color:var(--fg);font-weight:600;float:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--acc)}
+button{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 18px;font:600 15px system-ui;cursor:pointer}
+select{font:inherit;padding:4px 6px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
+canvas{width:100%;height:140px;display:block;margin-top:16px;border-radius:8px;border:1px solid var(--line)}
+img{max-width:100%;border-radius:8px;border:1px solid var(--line);background:#fff}
+code{font-size:.9em}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}
+a{color:var(--acc)}
+.mut{color:var(--mut);font-size:.9rem}
+</style>
+</head>
+<body>
+<main>
+<h1>Korg MS-10, component by component</h1>
+<p class="lede">A circuit-level model of the MS-10 running in a Web Audio AudioWorklet. Each block is built from the service-manual schematic, simulated in ngspice, and the JavaScript model is checked against that simulation.</p>
+
+<div class="card">
+  <button id="go">Play</button>
+  <span class="mut" id="status" style="margin-left:12px">Test oscillator into the VCF (KORG35)</span>
+  <div class="row">
+    <label>Oscillator <select id="wave"><option>sawtooth</option><option>square</option><option>triangle</option></select></label>
+    <label>Pitch <b id="pv"></b><input id="pitch" type="range" min="0" max="1000" value="400"></label>
+    <label>Cutoff <b id="cv"></b><input id="cut" type="range" min="0" max="1000" value="550"></label>
+    <label>Peak <b id="kv"></b><input id="peak" type="range" min="0" max="1000" value="700"></label>
+    <label>Drive (volts into R57) <b id="dv"></b><input id="drive" type="range" min="0" max="1000" value="250"></label>
+    <label>Volume <b id="vv"></b><input id="vol" type="range" min="0" max="1000" value="500"></label>
+  </div>
+  <canvas id="scope" width="1600" height="280"></canvas>
+  <p class="mut">Push Peak to the top for self-oscillation, as on the real panel.</p>
+</div>
+
+<h2>Status</h2>
+<table>
+<tr><th>Block</th><th>State</th></tr>
+<tr><td>VCF (IC16 KORG35)</td><td>Real external part values from the manual, validated against ngspice</td></tr>
+<tr><td>VCO</td><td>Next</td></tr>
+<tr><td>VCA, EG, MG (LFO)</td><td>Planned</td></tr>
+</table>
+
+<h2>VCF validation: JS model vs ngspice</h2>
+<p>Frequency response across cutoff and peak settings (lines ngspice, dots JS):</p>
+<img src="validate/out/ac.png" alt="Frequency response, ngspice vs JS model">
+<p>Transients at the KORG35 output pin, including drive and self-oscillation:</p>
+<img src="validate/out/tran.png" alt="Transient waveforms, ngspice vs JS model">
+<p class="mut">Full numbers in <a href="validate/out/report.md">report.md</a>. Source on <a href="https://github.com/johnnyhawk02/ms10">GitHub</a>.</p>
+</main>
+<script type="module">
+let ctx, node, osc, out, an;
+const $ = (id) => document.getElementById(id);
+const v = (id) => $(id).value / 1000;
+const pitch = () => 30 * Math.pow(2, v('pitch') * 5);
+const cutoff = () => 40 * Math.pow(2, v('cut') * 9);
+const drive = () => 0.2 + v('drive') * 9.8;
+function update() {
+  $('pv').textContent = pitch().toFixed(0) + ' Hz';
+  $('cv').textContent = cutoff().toFixed(0) + ' Hz';
+  $('kv').textContent = (v('peak') * 10).toFixed(1);
+  $('dv').textContent = drive().toFixed(1) + ' V';
+  $('vv').textContent = Math.round(v('vol') * 100) + '%';
+  if (!node) return;
+  const t = ctx.currentTime, P = (n) => node.parameters.get(n);
+  osc.type = $('wave').value;
+  osc.frequency.setTargetAtTime(pitch(), t, 0.01);
+  P('cutoff').setTargetAtTime(cutoff(), t, 0.01);
+  P('peak').setTargetAtTime(v('peak'), t, 0.01);
+  P('inputScale').setTargetAtTime(drive(), t, 0.01);
+  out.gain.setTargetAtTime(v('vol') * v('vol'), t, 0.01);
+}
+function draw() {
+  const c = $('scope'), g = c.getContext('2d'), buf = new Float32Array(an.fftSize);
+  const col = getComputedStyle(document.documentElement).getPropertyValue('--scope');
+  (function frame() {
+    an.getFloatTimeDomainData(buf);
+    let s = 0; for (let i = 1; i < buf.length / 2; i++) if (buf[i - 1] < 0 && buf[i] >= 0) { s = i; break; }
+    g.clearRect(0, 0, c.width, c.height); g.strokeStyle = col; g.lineWidth = 3; g.beginPath();
+    const n = buf.length / 2;
+    for (let i = 0; i < n; i++) { const x = i / n * c.width, y = c.height / 2 - buf[s + i] * c.height * 0.45; i ? g.lineTo(x, y) : g.moveTo(x, y); }
+    g.stroke(); requestAnimationFrame(frame);
+  })();
+}
+$('go').onclick = async () => {
+  if (ctx) { if (ctx.state === 'running') { await ctx.suspend(); $('go').textContent = 'Play'; } else { await ctx.resume(); $('go').textContent = 'Stop'; } return; }
+  try {
+    ctx = new AudioContext();
+    await ctx.audioWorklet.addModule('dsp/ms10-vcf-processor.js');
+    node = new AudioWorkletNode(ctx, 'ms10-vcf', { outputChannelCount: [1] });
+    osc = new OscillatorNode(ctx, { type: 'sawtooth' });
+    out = new GainNode(ctx, { gain: 0 }); an = new AnalyserNode(ctx, { fftSize: 4096 });
+    const lim = new DynamicsCompressorNode(ctx, { threshold: -6, ratio: 12 });
+    osc.connect(node).connect(an).connect(out).connect(lim).connect(ctx.destination); osc.start();
+    $('go').textContent = 'Stop'; update(); draw();
+  } catch (e) { $('status').textContent = 'Audio failed to start: ' + e.message; }
+};
+document.querySelectorAll('input,select').forEach((i) => i.oninput = update); update();
+</script>
+</body>
+</html>

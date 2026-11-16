@@ -1,0 +1,12 @@
+{
+  "_source": "Korg MS-10 service manual, circuit diagram p.4 (IC16 KORG35 and surroundings)",
+  "R57": 12000, "R56": 4700, "R59": 47,
+  "C12": 3.3e-9, "C13": 1e-9,
+  "R64": 270000, "R63": 4700, "C16": 10e-6, "C19": 33e-6,
+  "R62": 2200, "VR13": 10000, "R61": 5600, "C15": 1e-9, "R60": 220,
+  "BF": 200, "IS_diode": 2.52e-9, "N_diode": 1.752,
+  "tempC": 27,
+  "fn0": 500,
+  "fs": 48000,
+  "_assumed": "KORG35 internals: two BJT diff-pair transconductors (no internal attenuation), pin 7 = unity buffer of the C13 node, matched-pair expo converter. fn0 = self-oscillation frequency at cv=0, from adjustment procedure 7-4 (cutoff knob 5 -> 500 Hz)."
+}

@@ -1,0 +1,4 @@
+node_modules/
+spice/out/
+validate/out/model.json
+__pycache__/

@@ -1,0 +1,3 @@
+{ "name": "ms10-model", "private": true, "type": "module",
+  "scripts": { "spice": "python3 spice/run_spice.py", "model": "node validate/run_model.mjs",
+               "compare": "python3 validate/compare.py", "validate": "npm run spice && npm run model && npm run compare" } }
