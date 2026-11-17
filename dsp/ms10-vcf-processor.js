@@ -1,7 +1,8 @@
 // AudioWorkletProcessor wrapping the MS-10 VCF model.
 // Load with: await ctx.audioWorklet.addModule('dsp/ms10-vcf-processor.js')
-// inputScale: volts at R57 for a full-scale (1.0) input sample (the MS-10 VCO is a few volts).
-// outputScale: gain from KORG35 pin 7 (millivolts) back to audio full scale.
+// inputScale: volts at R57 for a full-scale (1.0) input sample. The MS-10 VCO reaches R57 through R80 43k or
+//   R81 330k, which is equivalent to a few hundred millivolts here.
+// outputScale: gain from IC7's output (after C19, the signal sent to the VCA) back to audio full scale.
 // cutoff: self-oscillation frequency in Hz (500 Hz = cutoff knob at 5 per the adjustment procedure).
 import { MS10VCF } from './ms10-vcf-core.js';
 
@@ -11,8 +12,8 @@ class MS10VCFProcessor extends AudioWorkletProcessor {
       { name: 'cutoff', defaultValue: 500, minValue: 20, maxValue: 20000, automationRate: 'k-rate' },
       { name: 'cv', defaultValue: 0, minValue: -10, maxValue: 10, automationRate: 'a-rate' }, // added V/oct
       { name: 'peak', defaultValue: 0.3, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
-      { name: 'inputScale', defaultValue: 5, minValue: 0, maxValue: 20, automationRate: 'k-rate' },
-      { name: 'outputScale', defaultValue: 40, minValue: 0, maxValue: 1000, automationRate: 'k-rate' },
+      { name: 'inputScale', defaultValue: 0.4, minValue: 0, maxValue: 20, automationRate: 'k-rate' },
+      { name: 'outputScale', defaultValue: 2, minValue: 0, maxValue: 50, automationRate: 'k-rate' },
     ];
   }
   constructor(options) {
@@ -33,7 +34,8 @@ class MS10VCFProcessor extends AudioWorkletProcessor {
       const out = output[c];
       for (let i = 0; i < n; i++) {
         if (cvRate || i === 0) f.setCV(baseCV + cvA[cvRate ? i : 0]);
-        out[i] = outS * f.tick(inp ? inS * inp[i] : 0);
+        f.tick(inp ? inS * inp[i] : 0);
+        out[i] = outS * f.ic7;
       }
     }
     return true;

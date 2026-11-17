@@ -3,7 +3,7 @@ import json, os
 import numpy as np, matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
 H = os.path.dirname(os.path.abspath(__file__)); SP = os.path.join(H, "..", "spice", "out"); OUT = os.path.join(H, "out")
 M = json.load(open(os.path.join(OUT, "model.json"))); fs = M["fs"]
-lines = ["# MS-10 VCF: JS model vs ngspice\n", "## Small-signal frequency response (50 mV at R57, 5 mV for peak 0.93; gain includes the 1/259 input attenuator)\n",
+lines = ["# MS-10 VCF: JS model vs ngspice\n", "## Small-signal frequency response (50 mV at R57, 5 mV for peak 0.35; gain includes the 1/259 input attenuator)\n",
          "| case (error only where response is within 40 dB of its max) | max abs dB error 20 Hz-10 kHz | max abs dB error 10-20 kHz | peak freq spice / model (Hz) | peak dB spice / model |", "|---|---|---|---|---|"]
 fig, ax = plt.subplots(figsize=(9, 5))
 for i, (name, d) in enumerate(M["ac"].items()):
@@ -17,13 +17,15 @@ for i, (name, d) in enumerate(M["ac"].items()):
 ax.set_ylim(-110, -25); ax.set_xlabel("Hz"); ax.set_ylabel("dB"); ax.grid(alpha=.3)
 ax.set_title("lines: ngspice   dots: JS model"); ax.legend(fontsize=6, ncol=3); fig.tight_layout()
 fig.savefig(os.path.join(OUT, "ac.png"), dpi=120)
-lines += ["\n## Transient (48 kHz, 4x oversampled RK4)\n", "| case | RMS error (V at pin 7) | RMS of spice output (V) | relative | JS cost (ms per s of audio, 1 voice) |", "|---|---|---|---|---|"]
+lines += ["\n## Transient (48 kHz, 4x oversampled RK4)\n", "| case | RMS error at pin 7 (V) | RMS of spice pin 7 (V) | relative | relative error at IC7 output (what the VCA hears) | JS cost (ms per s of audio, 1 voice) |", "|---|---|---|---|---|---|"]
 names = list(M["tran"]); fig, axs = plt.subplots(len(names), 1, figsize=(9, 2.6 * len(names)))
 for a, name in zip(axs, names):
     s = np.loadtxt(os.path.join(SP, name + ".dat")); y = np.array(M["tran"][name]["y"])
     t = np.arange(len(y)) / fs; si = np.interp(t, s[:, 0], s[:, 1]); n = min(len(y), np.searchsorted(t, s[-1, 0]))
     e = np.sqrt(np.mean((si[:n] - y[:n]) ** 2)); r = np.sqrt(np.mean(si[:n] ** 2))
-    lines.append(f"| {name} | {e:.4g} | {r:.4g} | {e/r*100:.2f}% | {M['tran'][name]['msPerSecondAudio']:.1f} |")
+    yi = np.array(M["tran"][name]["ic7"])[:n]; s7 = np.interp(t, s[:, 0], s[:, 3])[:n]
+    e7 = np.sqrt(np.mean((s7 - yi) ** 2)) / np.sqrt(np.mean(s7 ** 2))
+    lines.append(f"| {name} | {e:.4g} | {r:.4g} | {e/r*100:.2f}% | {e7*100:.2f}% | {M['tran'][name]['msPerSecondAudio']:.1f} |")
     if "selfosc" in name:
         def fa(t, y):
             y = y[len(y)//2:]; t = t[len(t)//2:]; z = np.where((y[:-1] < 0) & (y[1:] >= 0))[0]

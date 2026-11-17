@@ -16,21 +16,23 @@ Live page: https://johnnyhawk02.github.io/ms10/
 ## VCF
 From the circuit diagram (manual p.4): input attenuator R57 12k / R59 47R (with R56 4k7 to the EXT level amp),
 C12 3.3n (floating, to the peak-feedback node), C13 1n (to ground), peak amp IC7 1/2 4558 with R64 270k,
-R63 4k7 + C16 10u, limiting diodes D10/D11 1S1588, then C19 33u, R62 2k2, VR13 10kB PEAK pot,
-R61 5k6 || C15 1n into the feedback node with R60 220R to ground.
+R63 4k7 + C16 10u, limiting diodes D10/D11 1S1588, then C19 33u into the VR13 10kB PEAK pot with R62 2k2 from
+C19 to the wiper (across the pot's top section), then R61 5k6 || C15 1n into the feedback node with R60 220R to ground.
+IC7's output (after C19) is also what goes on to the VCA, so the web page listens there.
 
 **Assumed (not in the manual):** the inside of the KORG35 hybrid. It is modelled as two BJT
 differential-pair transconductors forming a Sallen-Key low-pass, a matched-pair exponential converter,
 and a unity buffer on pin 7. With these caps the loop self-oscillates at K = 1 + C13/C12 = 1.30, which the
-real feedback network reaches at about 97% of the PEAK pot, matching the panel behaviour.
+real feedback network reaches at about 39% of the PEAK pot rotation. Above that the filter self-oscillates and
+IC7's diodes set the level.
 The cutoff is calibrated to the adjustment procedure (7-4: cutoff knob at 5 oscillates at 500 Hz).
 The IC5 cutoff CV summer is not modelled yet; the worklet takes cutoff in Hz plus a V/oct CV.
 
 Validation summary (`validate/out/report.md`):
-- Resonant peak frequency matches ngspice exactly in all 9 cases; peak level within 0.15 dB.
-- Pass band within about 0.5 dB, up to 1 dB deep into the stop band (40 dB down).
-- Transients (square at high peak, hard-driven sine, saw): 0.04% to 0.2% RMS error.
-- Self-oscillation: 513.4 Hz / 2.10 mV in ngspice vs 517.6 Hz / 2.09 mV in JS.
+- Resonant peak frequency matches ngspice in all 9 cases; peak level within 0.35 dB.
+- Pass band within about 0.7 dB.
+- Transients at real signal levels (square near the onset of oscillation, driven sine, saw): 0.1% to 0.9% RMS error.
+- Self-oscillation at peak 0.7: 508.5 Hz / 4.53 mV in ngspice vs 510.1 Hz / 4.52 mV in JS.
 
 ## VCO
 From the circuit diagram: the keyboard CV is **Hz/V**. It drives a 100k x8 (0.1%) resistor chain; SW-1 picks the
@@ -50,7 +52,7 @@ The web page plays the VCO saw (polyBLEP band-limited) through the VCF (`dsp/ms1
 
 ## Layout
 - `spice/korg35_vcf.lib` - netlist; `spice/params.json` - values; `spice/run_spice.py` - test benches
-- `dsp/ms10-vcf-core.js` - DSP model (RK4, 4x oversampled, exponential integrator for the stiff C15 node)
+- `dsp/ms10-vcf-core.js` - DSP model (4x oversampled ETDRK4; the exponential part handles the stiff C15 node)
 - `dsp/ms10-vcf-processor.js` - AudioWorkletProcessor `ms10-vcf`
 - `spice/ms10_vco.lib`, `spice/run_vco.py` - VCO netlist and sweep; `dsp/ms10-vco-core.js` - VCO model
 - `dsp/ms10-voice-processor.js` - AudioWorkletProcessor `ms10-voice` (VCO saw into VCF)

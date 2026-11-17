@@ -13,7 +13,7 @@ function acResponse(cv, pk, freqs) {
   const m0 = new MS10VCF(fs_); m0.setCV(cv); m0.setPeak(pk); m0.settle(); const st = m0.getState();
   return freqs.map((f) => {
     const m = new MS10VCF(fs_); m.setCV(cv); m.setPeak(pk); m.setState(st);
-    const A = pk > 0.9 ? 0.005 : 0.05, settle = Math.ceil(0.15 * fs_), cyc = Math.max(8, Math.round(f * 0.05));
+    const A = pk > 0.3 ? 0.005 : 0.05, settle = Math.ceil(0.15 * fs_), cyc = Math.max(8, Math.round(f * 0.05));
     const meas = Math.round(cyc * fs_ / f);
     let re = 0, im = 0;
     for (let i = 0; i < settle + meas; i++) {
@@ -30,9 +30,10 @@ for (const [name, cv, pk] of D.tran_cases) {
   const txt = fs.readFileSync(path.join(sp, name + '_in.txt'), 'utf8').trim().split('\n');
   const x = txt.map((l) => parseFloat(l.split(' ')[1]));
   const m = new MS10VCF(fs_); m.setCV(cv); m.setPeak(pk); m.settle();
-  const t0 = performance.now(); const y = x.concat([x[x.length-1]]).map((v) => m.tick(v)).slice(1); // drop 1-sample latency
+  const t0 = performance.now(); const ic7 = [];
+  const y = x.concat([x[x.length-1]]).map((v) => { const r = m.tick(v); ic7.push(m.ic7); return r; }).slice(1); ic7.shift(); // drop 1-sample latency
   const dt = performance.now() - t0;
-  res.tran[name] = { y, msPerSecondAudio: dt / (x.length / fs_) };
+  res.tran[name] = { y, ic7, msPerSecondAudio: dt / (x.length / fs_) };
 }
 fs.writeFileSync(path.join(out, 'model.json'), JSON.stringify(res));
 console.log('ok');

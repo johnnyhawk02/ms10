@@ -44,12 +44,12 @@ a{color:var(--acc)}
     <label>Keyboard CV (Hz/V) <b id="pv"></b><input id="pitch" type="range" min="0" max="1000" value="400"></label>
     <label>Pitch knob (expo, IC1) <b id="ev"></b><input id="expo" type="range" min="0" max="1000" value="500"></label>
     <label>Cutoff <b id="cv"></b><input id="cut" type="range" min="0" max="1000" value="550"></label>
-    <label>Peak <b id="kv"></b><input id="peak" type="range" min="0" max="1000" value="700"></label>
+    <label>Peak <b id="kv"></b><input id="peak" type="range" min="0" max="1000" value="350"></label>
     <label>VCO level into VCF <b id="dv"></b><input id="drive" type="range" min="0" max="1000" value="250"></label>
     <label>Volume <b id="vv"></b><input id="vol" type="range" min="0" max="1000" value="500"></label>
   </div>
   <canvas id="scope" width="1600" height="280"></canvas>
-  <p class="mut">Push Peak to the top for self-oscillation, as on the real panel.</p>
+  <p class="mut">Peak starts to self-oscillate a little before 4 on the dial. Higher settings scream more and get grittier as IC7's limiting diodes take over.</p>
 </div>
 
 <h2>Status</h2>

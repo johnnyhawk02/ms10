@@ -2,7 +2,8 @@
 * External parts (real values): R57 12k / R59 47R input attenuator (R56 4k7 to the EXT level amp),
 *   C12 3.3n (floating, to the peak-feedback node), C13 1n (to ground),
 *   peak amp IC7 (1/2 4558): R64 270k || D10,D11 (1S1588), R63 4k7 + C16 10u to ground,
-*   C19 33u -> R62 2k2 -> VR13 10kB PEAK pot -> R61 5k6 || C15 1n -> feedback node, R60 220R to ground.
+*   C19 33u -> VR13 10kB PEAK pot to ground, with R62 2k2 from C19 to the wiper (in parallel with the top
+*   section); wiper -> R61 5k6 || C15 1n -> feedback node, R60 220R to ground.
 * KORG35 internals are NOT in the manual. Assumed here: two BJT differential-pair transconductors
 *   (the Sallen-Key "resistors"), a matched-pair exponential converter, unity output buffer on pin 7.
 
@@ -49,8 +50,8 @@ D11 nm a d1s1588
 R63 nm c16 4.7k
 C16 c16 0 10u
 C19 a b 33u
-R62 b t 2.2k
-Ra t w {(1-peak)*10k + 0.01}
+R62 b w 2.2k
+Ra b w {(1-peak)*10k + 0.01}
 Rb w 0 {peak*10k + 0.01}
 R61 w f 5.6k
 C15 w f 1n

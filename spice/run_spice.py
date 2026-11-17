@@ -37,7 +37,7 @@ def vcf_line(cv, peak):
     return (f"Vvc vc 0 DC {vc_for(cv):.9g}\n"
             f"X vin out vc vcc ms10vcf iref={IREF:.9g} peak={peak}")
 
-AC_CASES = [(cv, pk) for cv in (-2, 0, 2) for pk in (0, 0.6, 0.93)]
+AC_CASES = [(cv, pk) for cv in (-2, 0, 2) for pk in (0, 0.2, 0.35)]
 def run_ac():
     for cv, rf in AC_CASES:
         name = f"ac_cv{cv}_peak{rf}"
@@ -55,15 +55,15 @@ def pwl_file(name, x):
 def tran_inputs():
     fs = P["fs"]; t = lambda dur: np.arange(int(dur*fs)) / fs
     tt = t(0.03)
-    sq = np.where(np.sin(2*np.pi*110*tt) >= 0, 2.5, -2.5); sq[0] = 0.0
-    t2 = t(0.06); kick = np.zeros_like(t2); kick[1:5] = 2.0
-    t3 = t(0.03); sine = 5.0*np.sin(2*np.pi*220*t3)
-    t4 = t(0.03); saw = 5.0*((t4*82.4) % 1.0) - 2.5; saw[0] = 0
-    # (name, input volts at R57, cv, peak)
-    return [("tran_square_res", sq, 1, 0.9),
-            ("tran_selfosc", kick, 0, 1.0),
-            ("tran_sine_drive", sine, 1.5, 0.5),
-            ("tran_saw_lowpeak", saw, 0.5, 0.2)]
+    sq = np.where(np.sin(2*np.pi*110*tt) >= 0, 0.4, -0.4); sq[0] = 0.0
+    t2 = t(0.06); kick = np.zeros_like(t2); kick[1:5] = 0.5
+    t3 = t(0.03); sine = 1.5*np.sin(2*np.pi*220*t3)
+    t4 = t(0.03); saw = 0.8*((t4*82.4) % 1.0) - 0.4; saw[0] = 0
+    # (name, input volts at R57, cv, peak). Real VCO levels at R57 are a few hundred mV (R80 43k / R81 330k in series).
+    return [("tran_square_res", sq, 1, 0.35),
+            ("tran_selfosc", kick, 0, 0.7),
+            ("tran_sine_drive", sine, 1.5, 0.3),
+            ("tran_saw_lowpeak", saw, 0.5, 0.15)]
 
 def run_tran():
     fs = P["fs"]
@@ -76,7 +76,7 @@ def run_tran():
         dat = os.path.join(OUT, name + ".dat")
         bench(name, body,
               f"tran {1/fs/8:.6e} {dur - 1/fs:.6e} 0 {1/fs/16:.6e}\n"
-              f"linearize v(out)\nwrdata {dat} v(out)")
+              f"linearize v(out) v(x.b)\nwrdata {dat} v(out) v(x.b)")
 
 if __name__ == "__main__":
     json.dump({"VT": VT, "alpha": alpha, "Iref": IREF,
